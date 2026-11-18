@@ -1,0 +1,1 @@
+"""Insurance chat service application."""
