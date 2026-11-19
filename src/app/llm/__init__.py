@@ -1,1 +1,1 @@
-"""LLM provider abstractions and implementations."""
+"""Provider-independent LLM integration interfaces."""

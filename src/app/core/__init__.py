@@ -1,1 +1,1 @@
-"""Core application configuration and infrastructure."""
+"""Application configuration, observability, and shared runtime concerns."""

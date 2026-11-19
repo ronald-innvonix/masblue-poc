@@ -1,35 +1,23 @@
+# Build the pinned application environment separately from the runtime image.
 FROM python:3.12-slim AS builder
-
-ENV PIP_NO_CACHE_DIR=1
+COPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /uvx /bin/
 WORKDIR /build
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY pyproject.toml ./
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+COPY pyproject.toml README.md ./
 COPY src ./src
-COPY alembic ./alembic
-COPY alembic.ini ./
-RUN pip wheel --wheel-dir /wheels .
+RUN uv sync --no-dev
 
 FROM python:3.12-slim AS runtime
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
+ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
-WORKDIR /service
-
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /wheels /wheels
-RUN pip install --no-cache-dir /wheels/*.whl && rm -rf /wheels
-COPY alembic ./alembic
-COPY alembic.ini ./
-
-RUN useradd --create-home --uid 10001 service
-USER service
+    PYTHONDONTWRITEBYTECODE=1
+WORKDIR /app
+RUN groupadd --system app && useradd --system --gid app --home-dir /app app
+COPY --from=builder --chown=app:app /build/.venv /app/.venv
+COPY --chown=app:app migrations ./migrations
+COPY --chown=app:app alembic.ini ./
+USER app
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2)"
-CMD ["uvicorn", "app.main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD python -c "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/v1/health', timeout=2)"
+CMD ["gunicorn", "app.main:app", "--bind", "0.0.0.0:8000", "--workers", "2", "--worker-class", "uvicorn.workers.UvicornWorker", "--access-logfile", "-", "--error-logfile", "-"]

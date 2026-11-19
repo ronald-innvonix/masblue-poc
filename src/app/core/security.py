@@ -1,16 +1,31 @@
-import hmac
-from typing import Annotated
+"""Validate bearer JWTs issued by the existing application."""
 
-from fastapi import Depends, Header
+from typing import Any
 
-from app.core.config import Settings, get_settings
-from app.core.errors import UnauthorizedError
+import jwt
+
+from app.core.config import Settings
+from app.core.exceptions import ServiceConfigurationError, UnauthorizedError
+from app.schemas.common import CurrentUser
 
 
-async def require_internal_key(
-    settings: Annotated[Settings, Depends(get_settings)],
-    x_internal_key: Annotated[str | None, Header()] = None,
-) -> None:
-    expected = settings.internal_api_key.get_secret_value()
-    if x_internal_key is None or not hmac.compare_digest(x_internal_key, expected):
-        raise UnauthorizedError("Invalid internal API key")
+def decode_access_token(token: str, settings: Settings) -> CurrentUser:
+    """Validate a Node-issued token and expose its subject and claims."""
+    algorithm = settings.jwt_algorithm
+    # Select key type from the configured algorithm to avoid accepting token-chosen algorithms.
+    key = settings.jwt_secret if algorithm.startswith("HS") else settings.jwt_public_key
+    if not key:
+        raise ServiceConfigurationError
+    try:
+        claims: dict[str, Any] = jwt.decode(
+            token,
+            key,
+            algorithms=[algorithm],
+            options={"require": ["sub"]},
+        )
+    except jwt.InvalidTokenError as exc:
+        raise UnauthorizedError from exc
+    subject = claims.get("sub")
+    if not isinstance(subject, str | int) or not str(subject):
+        raise UnauthorizedError
+    return CurrentUser(user_id=str(subject), claims=claims)

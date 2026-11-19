@@ -1,37 +1,16 @@
+"""Abstract asynchronous LLM provider contract."""
+
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class LLMResponse:
-    text: str
-    model: str
-    input_tokens: int
-    output_tokens: int
-    latency_ms: int
 
 
 class LLMProvider(ABC):
-    @abstractmethod
-    async def complete(
-        self,
-        system: str,
-        messages: list[dict[str, str]],
-        max_tokens: int,
-        temperature: float,
-    ) -> LLMResponse: ...
+    """Define the provider contract consumed by chat business logic."""
 
     @abstractmethod
-    def stream(
-        self,
-        system: str,
-        messages: list[dict[str, str]],
-        max_tokens: int,
-        temperature: float,
-    ) -> AsyncIterator[str]: ...
+    async def generate(self, prompt: str) -> str:
+        """Generate a complete response for the given prompt."""
 
-
-class EmbeddingProvider(ABC):
     @abstractmethod
-    async def embed(self, texts: list[str]) -> list[list[float]]: ...
+    def stream(self, prompt: str) -> AsyncIterator[str]:
+        """Return an asynchronous stream of response text chunks."""

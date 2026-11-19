@@ -1,1 +1,1 @@
-"""Database infrastructure."""
+"""Async database engine and session management."""

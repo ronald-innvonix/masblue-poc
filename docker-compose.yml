@@ -1,29 +1,44 @@
+# Local development stack only; production secrets and database access belong in
+# the deployment platform's secret manager.
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: postgres:16.8
     environment:
-      POSTGRES_DB: insurance_chat
-      POSTGRES_USER: insurance
-      POSTGRES_PASSWORD: insurance
+      POSTGRES_DB: ai_chat
+      POSTGRES_USER: ${POSTGRES_USER:-ai_chat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-dev-only}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U insurance -d insurance_chat"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d ai_chat"]
       interval: 5s
       timeout: 3s
       retries: 10
 
-  api:
+  app:
     build: .
-    env_file: .env
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ai_chat}:${POSTGRES_PASSWORD:-local-dev-only}@postgres:5432/ai_chat
+      DB_SCHEMA: ${DB_SCHEMA:-ai_chat}
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-change-me}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      LLM_PROVIDER: ${LLM_PROVIDER:-stub}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-stub}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --app-dir src --host 0.0.0.0 --port 8000"
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
 
 volumes:
   postgres_data:

@@ -1,1 +1,1 @@
-"""Insurance chat service application."""
+"""AI chat microservice application package."""

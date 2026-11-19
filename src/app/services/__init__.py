@@ -1,1 +1,1 @@
-"""Application services."""
+"""Application use cases and business logic."""

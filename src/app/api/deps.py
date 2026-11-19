@@ -1,45 +1,61 @@
-from typing import Annotated, cast
+"""FastAPI dependencies for auth, services, and repositories."""
 
-from fastapi import Depends, Request
+from typing import Annotated
+
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.db.repositories.chat_repository import ChatRepository
-from app.db.session import get_session
-from app.llm.base import EmbeddingProvider, LLMProvider
+from app.core.exceptions import UnauthorizedError
+from app.core.security import decode_access_token
+from app.db.session import get_db
+from app.llm.anthropic_provider import AnthropicProvider
+from app.llm.base import LLMProvider
+from app.repositories.health_repo import HealthRepository
+from app.schemas.common import CurrentUser
 from app.services.chat_service import ChatService
-from app.services.ingestion_service import IngestionService
-from app.services.retrieval_service import RetrievalService
+from app.services.health_service import HealthService
 
-SessionDep = Annotated[AsyncSession, Depends(get_session)]
-SettingsDep = Annotated[Settings, Depends(get_settings)]
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_llm_provider(request: Request) -> LLMProvider:
-    return cast(LLMProvider, request.app.state.llm)
+async def get_current_user(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
+    ],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> CurrentUser:
+    """Validate the bearer token and return the authenticated app user."""
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise UnauthorizedError
+    return decode_access_token(credentials.credentials, settings)
 
 
-def get_embedding_provider(request: Request) -> EmbeddingProvider:
-    return cast(EmbeddingProvider, request.app.state.embeddings)
+def get_llm_provider() -> LLMProvider:
+    """Provide the configured provider abstraction (currently a safe stub)."""
+    # TODO(phase-2): Select and configure a real provider based on LLM_PROVIDER.
+    return AnthropicProvider()
 
 
 def get_chat_service(
-    session: SessionDep,
-    settings: SettingsDep,
-    llm: Annotated[LLMProvider, Depends(get_llm_provider)],
-    embeddings: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
+    provider: Annotated[LLMProvider, Depends(get_llm_provider)],
 ) -> ChatService:
-    retrieval = RetrievalService(
-        repository=ChatRepository(session),
-        embeddings=embeddings,
-        top_k=settings.retrieval_top_k,
-        expected_dimension=settings.embed_dim,
-    )
-    return ChatService(session, llm, retrieval, settings)
+    """Construct a chat service using the provider dependency."""
+    return ChatService(provider)
 
 
-def get_ingestion_service(
-    session: SessionDep,
-    embeddings: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
-) -> IngestionService:
-    return IngestionService(session, embeddings)
+async def get_health_service(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> HealthService:
+    """Construct the readiness service with a repository-backed DB check."""
+    return HealthService(HealthRepository(session))
+
+
+async def rate_limit_placeholder(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> None:
+    """Reserve a dependency slot for a shared rate limiter without false enforcement."""
+    # TODO(phase-2): Add Redis-backed rate limiting and cache shared state.
+    _ = settings.rate_limit_per_minute

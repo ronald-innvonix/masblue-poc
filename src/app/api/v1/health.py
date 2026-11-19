@@ -1,20 +1,25 @@
-from fastapi import APIRouter, Request
+"""Liveness and database-readiness probes."""
 
-from app.db.repositories.chat_repository import ChatRepository
-from app.db.session import SessionFactory
+from typing import Annotated
 
-router = APIRouter(tags=["health"])
+from fastapi import APIRouter, Depends
+
+from app.api.deps import get_health_service
+from app.services.health_service import HealthService
+
+router = APIRouter()
 
 
-@router.get("/health/live")
-async def live() -> dict[str, str]:
-    return {"status": "live"}
+@router.get("/health")
+async def health() -> dict[str, str]:
+    """Return a lightweight liveness response without checking dependencies."""
+    return {"status": "ok"}
 
 
-@router.get("/health/ready")
-async def ready(request: Request) -> dict[str, str]:
-    async with SessionFactory() as session:
-        await ChatRepository(session).ping()
-    if not hasattr(request.app.state, "llm") or not hasattr(request.app.state, "embeddings"):
-        raise RuntimeError("Application providers are not initialized")
+@router.get("/ready")
+async def ready(
+    service: Annotated[HealthService, Depends(get_health_service)],
+) -> dict[str, str]:
+    """Check that the service can reach its own PostgreSQL schema."""
+    await service.check_database()
     return {"status": "ready"}

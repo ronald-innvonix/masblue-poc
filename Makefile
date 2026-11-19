@@ -1,22 +1,22 @@
-.PHONY: run test lint typecheck migrate ingest eval
+# Common local development commands.
+.PHONY: install dev test lint format migrate
 
-run:
-	uvicorn app.main:app --app-dir src --reload
+install:
+	uv sync --group dev
+
+dev:
+	uv run uvicorn app.main:app --reload
 
 test:
-	pytest
+	uv run pytest
 
 lint:
-	ruff check src tests
+	uv run ruff check .
+	uv run mypy
 
-typecheck:
-	mypy src
+format:
+	uv run ruff format .
 
 migrate:
-	alembic upgrade head
+	uv run alembic upgrade head
 
-ingest:
-	python scripts/ingest.py $(ARGS)
-
-eval:
-	python tests/eval/run.py
