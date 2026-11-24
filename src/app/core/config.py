@@ -1,8 +1,9 @@
 """Environment-backed application settings."""
 
 from functools import lru_cache
+from urllib.parse import quote
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,7 +12,12 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     log_level: str = "INFO"
-    database_url: str = "postgresql+asyncpg://localhost/ai_chat"
+    db_host: str = "localhost"
+    db_port: int = Field(default=5432, gt=0, le=65535)
+    db_name: str = "ai_chat"
+    db_username: str | None = None
+    db_password: str | None = None
+    database_url: str = ""
     db_schema: str = Field(default="ai_chat", pattern=r"^[a-z][a-z0-9_]{0,62}$")
     jwt_secret: str | None = None
     jwt_public_key: str | None = None
@@ -29,6 +35,21 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
     )
+
+    @model_validator(mode="after")
+    def build_database_url(self) -> "Settings":
+        """Build DATABASE_URL from DB_* fields unless it is explicitly configured."""
+        if self.database_url:
+            return self
+
+        username = quote(self.db_username or "", safe="")
+        password = quote(self.db_password or "", safe="")
+        credentials = f"{username}:{password}" if username or password else ""
+        authority = f"{credentials}@" if credentials else ""
+        self.database_url = (
+            f"postgresql+asyncpg://{authority}{self.db_host}:{self.db_port}/{self.db_name}"
+        )
+        return self
 
     @field_validator("cors_origins")
     @classmethod

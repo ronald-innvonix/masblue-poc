@@ -3,7 +3,11 @@
 import os
 from collections.abc import AsyncIterator, Iterator
 
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://localhost/ai_chat")
+os.environ.setdefault("DB_HOST", "localhost")
+os.environ.setdefault("DB_PORT", "5434")
+os.environ.setdefault("DB_NAME", "force_development_db_07102026")
+os.environ.setdefault("DB_USERNAME", "ronald")
+os.environ.setdefault("DB_PASSWORD", "ronald")
 os.environ["JWT_SECRET"] = "test-only-signing-secret"
 os.environ.setdefault("APP_ENV", "test")
 

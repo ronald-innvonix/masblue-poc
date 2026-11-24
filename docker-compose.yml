@@ -22,7 +22,12 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ai_chat}:${POSTGRES_PASSWORD:-local-dev-only}@postgres:5432/ai_chat
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ai_chat
+      DB_USERNAME: ${POSTGRES_USER:-ai_chat}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-local-dev-only}
+      DATABASE_URL: ""
       DB_SCHEMA: ${DB_SCHEMA:-ai_chat}
       JWT_SECRET: ${JWT_SECRET:-local-dev-only-change-me}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
