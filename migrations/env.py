@@ -47,7 +47,6 @@ def _do_run_migrations(connection: object) -> None:
 
     if not isinstance(connection, Connection):
         raise TypeError("Expected a synchronous SQLAlchemy connection")
-    connection.execute(CreateSchema(schema, if_not_exists=True))
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
@@ -57,6 +56,7 @@ def _do_run_migrations(connection: object) -> None:
         include_name=include_name,
     )
     with context.begin_transaction():
+        connection.execute(CreateSchema(schema, if_not_exists=True))
         context.run_migrations()
 
 
