@@ -1,16 +1,25 @@
 """Embedding model registry ORM model."""
 
 from datetime import datetime
+from enum import Enum as PyEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Index, Integer, String, func, text
+from sqlalchemy import Boolean, DateTime, Enum, Index, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.config import get_settings
 from app.models.base import Base, UUIDPrimaryKey
 
 if TYPE_CHECKING:
     from app.models.document_chunk import DocumentChunk
     from app.models.document_vector_status import DocumentVectorStatus
+
+
+class EmbeddingModelType(str, PyEnum):
+    """Purpose of a registered embedding model configuration."""
+
+    EMBEDDING = "embedding"
+    CONVERSATION = "conversation"
 
 
 class EmbeddingModel(UUIDPrimaryKey, Base):
@@ -27,6 +36,15 @@ class EmbeddingModel(UUIDPrimaryKey, Base):
     )
 
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    type: Mapped[EmbeddingModelType] = mapped_column(
+        Enum(
+            EmbeddingModelType,
+            name="embedding_model_type",
+            schema=get_settings().db_schema,
+            values_callable=lambda enum_values: [value.value for value in enum_values],
+        ),
+        nullable=False,
+    )
     model_name: Mapped[str] = mapped_column(String(100), nullable=False)
     dimensions: Mapped[int] = mapped_column(Integer, nullable=False)
     distance_metric: Mapped[str] = mapped_column(

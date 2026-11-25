@@ -15,7 +15,7 @@ class ConversationRepository:
         """Store the request-scoped asynchronous database session."""
         self._session = session
 
-    async def get_for_user(self, conversation_id: UUID, user_id: UUID) -> Conversation | None:
+    async def get_for_user(self, conversation_id: UUID, user_id: str) -> Conversation | None:
         """Fetch a conversation only when it belongs to the supplied user."""
         result = await self._session.execute(
             select(Conversation).where(

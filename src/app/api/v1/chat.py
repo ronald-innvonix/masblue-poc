@@ -3,14 +3,19 @@
 import json
 from collections.abc import AsyncIterator
 from typing import Annotated
+from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_chat_service, get_current_user, rate_limit_placeholder
 from app.core.exceptions import AppError
-from app.schemas.chat import ChatRequest, ChatResponse
+from app.db.session import get_db
+from app.repositories.conversation_repo import ConversationRepository
+from app.repositories.message_repo import MessageRepository
+from app.schemas.chat import ChatRequest, ChatResponse, ConversationMessagesResponse
 from app.schemas.common import CurrentUser
 from app.services.chat_service import ChatService
 
@@ -21,6 +26,36 @@ router = APIRouter(
 )
 
 
+@router.get("/{conversation_id}/messages", response_model=ConversationMessagesResponse)
+async def get_conversation_messages(
+    conversation_id: UUID,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> ConversationMessagesResponse:
+    """Return an authenticated user's conversation messages in chronological pages."""
+    conversation = await ConversationRepository(session).get_for_user(
+        conversation_id,
+        user.user_id,
+    )
+    if conversation is None:
+        raise AppError("CONVERSATION_NOT_FOUND", "Conversation not found", 404)
+
+    messages, total = await MessageRepository(session).list_page_for_conversation(
+        conversation_id,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    return ConversationMessagesResponse(
+        conversation_id=conversation_id,
+        page=page,
+        page_size=page_size,
+        total=total,
+        messages=messages,
+    )
+
+
 @router.post("", response_model=ChatResponse)
 async def chat(
     payload: ChatRequest,
@@ -28,8 +63,12 @@ async def chat(
     user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> ChatResponse:
     """Return an assistant reply for an authenticated request."""
-    answer = await service.generate_reply(payload.message, user)
-    return ChatResponse(conversation_id=payload.conversation_id, message=answer)
+    conversation_id, answer = await service.generate_reply(
+        payload.message,
+        user,
+        payload.conversation_id,
+    )
+    return ChatResponse(conversation_id=conversation_id, message=answer)
 
 
 @router.post("/stream")
@@ -45,8 +84,12 @@ async def stream_chat(
     async def event_stream() -> AsyncIterator[str]:
         """Encode provider token chunks as SSE data frames."""
         try:
-            async for token in service.stream_reply(payload.message, user):
-                yield f"data: {json.dumps({'token': token})}\n\n"
+            async for event in service.stream_reply(
+                payload.message,
+                user,
+                payload.conversation_id,
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
         except AppError as exc:
             error_payload = {"error": {"code": exc.code, "message": exc.message}}
             yield f"data: {json.dumps(error_payload)}\n\n"

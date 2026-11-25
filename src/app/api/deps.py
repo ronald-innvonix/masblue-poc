@@ -12,7 +12,9 @@ from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.llm.base import LLMProvider
 from app.llm.factory import LLMFactory, ResolvedLLM
+from app.repositories.conversation_repo import ConversationRepository
 from app.repositories.health_repo import HealthRepository
+from app.repositories.message_repo import MessageRepository
 from app.schemas.common import CurrentUser
 from app.services.chat_service import ChatService
 from app.services.health_service import HealthService
@@ -105,9 +107,16 @@ def get_llm_provider(
 
 def get_chat_service(
     resolved: Annotated[ResolvedLLM, Depends(get_chat_llm)],
+    session: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChatService:
     """Construct a chat service using the resolved LLM provider and config."""
-    return ChatService(resolved.provider, resolved.config)
+    return ChatService(
+        resolved.provider,
+        resolved.config,
+        session,
+        ConversationRepository(session),
+        MessageRepository(session),
+    )
 
 
 async def get_health_service(

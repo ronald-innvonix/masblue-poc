@@ -1,9 +1,8 @@
 """Conversation ORM model."""
 
 from typing import TYPE_CHECKING
-from uuid import UUID
 
-from sqlalchemy import String, Uuid
+from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKey
@@ -17,8 +16,7 @@ class Conversation(UUIDPrimaryKey, TimestampMixin, Base):
 
     __tablename__ = "conversations"
 
-    # TODO(phase-2): Match this UUID column to the existing application's user ID type.
-    user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation",

@@ -30,6 +30,15 @@ def upgrade() -> None:
         schema=schema,
     )
 
+    embedding_model_type = postgresql.ENUM(
+        "embedding",
+        "conversation",
+        name="embedding_model_type",
+        schema=schema,
+        create_type=False,
+    )
+    embedding_model_type.create(op.get_bind(), checkfirst=True)
+
     op.create_table(
         "embedding_model",
         sa.Column(
@@ -39,6 +48,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("provider", sa.String(length=50), nullable=False),
+        sa.Column("type", embedding_model_type, nullable=False),
         sa.Column("model_name", sa.String(length=100), nullable=False),
         sa.Column("dimensions", sa.Integer(), nullable=False),
         sa.Column(
@@ -223,6 +233,10 @@ def downgrade() -> None:
 
     op.drop_index("uq_single_active_model", table_name="embedding_model", schema=schema)
     op.drop_table("embedding_model", schema=schema)
+    postgresql.ENUM(name="embedding_model_type", schema=schema).drop(
+        op.get_bind(),
+        checkfirst=True,
+    )
 
     op.drop_column("messages", "intent", schema=schema)
     op.drop_column("messages", "citations", schema=schema)
