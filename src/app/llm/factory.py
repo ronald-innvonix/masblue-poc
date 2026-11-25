@@ -106,6 +106,32 @@ class LLMFactory:
         return ResolvedLLM(provider=provider, config=config)
 
     @classmethod
+    def get_chat_llm_from_registry(
+        cls,
+        settings: Settings,
+        *,
+        provider_name: str,
+        api_key: str | None,
+        base_url: str | None,
+        model: str,
+    ) -> ResolvedLLM:
+        """Build chat LLM settings from a registry row and sampling settings from env."""
+        config = ModelConfig(
+            model=model,
+            temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_tokens,
+            timeout_seconds=settings.llm_timeout_seconds,
+        )
+        provider = cls._build_provider(
+            provider_name=provider_name,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            timeout_seconds=settings.llm_timeout_seconds,
+        )
+        return ResolvedLLM(provider=provider, config=config)
+
+    @classmethod
     def get_intent_llm(cls, settings: Settings) -> ResolvedLLM:
         """Build the intent-classification provider and its ModelConfig."""
         provider_name = settings.intent_llm_provider or settings.llm_provider

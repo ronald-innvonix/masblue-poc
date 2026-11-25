@@ -30,7 +30,7 @@ class DocumentVectorStatus(UUIDPrimaryKey, Base):
     source_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     embedding_model_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey(f"{schema_qualified('embedding_model')}.id"),
+        ForeignKey(f"{schema_qualified('models')}.id"),
         nullable=False,
     )
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)

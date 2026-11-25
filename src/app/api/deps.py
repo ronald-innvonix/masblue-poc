@@ -7,14 +7,16 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.core.exceptions import UnauthorizedError
+from app.core.exceptions import ServiceConfigurationError, UnauthorizedError
 from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.llm.base import LLMProvider
 from app.llm.factory import LLMFactory, ResolvedLLM
+from app.models.embedding_model import EmbeddingModelType
 from app.repositories.conversation_repo import ConversationRepository
 from app.repositories.health_repo import HealthRepository
 from app.repositories.message_repo import MessageRepository
+from app.repositories.model_repo import ModelRepository
 from app.schemas.common import CurrentUser
 from app.services.chat_service import ChatService
 from app.services.health_service import HealthService
@@ -105,14 +107,42 @@ def get_llm_provider(
     return resolved.provider
 
 
-def get_chat_service(
-    resolved: Annotated[ResolvedLLM, Depends(get_chat_llm)],
+async def get_chat_service(
     session: Annotated[AsyncSession, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> ChatService:
-    """Construct a chat service using the resolved LLM provider and config."""
+    """Use the active conversation model when configured, otherwise use env settings."""
+    model = await ModelRepository(session).get_active_by_type(EmbeddingModelType.CONVERSATION)
+    model_id = model.id if model is not None else None
+    if model is None:
+        resolved = get_chat_llm(settings)
+    else:
+        if not model.provider or not model.model_name:
+            raise ServiceConfigurationError
+        key: _ProviderCacheKey = (
+            model.provider,
+            model.base_url,
+            model.api_key,
+            model.model_name,
+            settings.llm_temperature,
+            settings.llm_max_tokens,
+            settings.llm_timeout_seconds,
+        )
+        resolved = _chat_llm_cache.get(key)
+        if resolved is None:
+            resolved = LLMFactory.get_chat_llm_from_registry(
+                settings,
+                provider_name=model.provider,
+                api_key=model.api_key,
+                base_url=model.base_url,
+                model=model.model_name,
+            )
+            _chat_llm_cache[key] = resolved
+
     return ChatService(
         resolved.provider,
         resolved.config,
+        model_id,
         session,
         ConversationRepository(session),
         MessageRepository(session),

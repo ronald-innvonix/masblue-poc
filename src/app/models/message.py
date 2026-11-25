@@ -14,6 +14,7 @@ MessageRole = Literal["user", "assistant", "system"]
 
 if TYPE_CHECKING:
     from app.models.conversation import Conversation
+    from app.models.embedding_model import EmbeddingModel
 
 
 class Message(UUIDPrimaryKey, Base):
@@ -34,6 +35,12 @@ class Message(UUIDPrimaryKey, Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     citations: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     intent: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    model_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(f"{schema_qualified('models')}.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -41,3 +48,4 @@ class Message(UUIDPrimaryKey, Base):
         nullable=False,
     )
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+    model: Mapped["EmbeddingModel | None"] = relationship(back_populates="messages")

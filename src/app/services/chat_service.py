@@ -25,6 +25,7 @@ class ChatService:
         self,
         provider: LLMProvider,
         model_config: ModelConfig,
+        model_id: UUID | None,
         session: AsyncSession,
         conversations: ConversationRepository,
         messages: MessageRepository,
@@ -33,6 +34,7 @@ class ChatService:
         """Create a chat service with its injected LLM provider and model config."""
         self._provider = provider
         self._model_config = model_config
+        self._model_id = model_id
         self._session = session
         self._conversations = conversations
         self._messages = messages
@@ -83,7 +85,12 @@ class ChatService:
         conversation, history = await self._prepare_turn(message, user, conversation_id)
         answer = await self._provider.generate(self._build_messages(history), self._model_config)
         await self._messages.add(
-            Message(conversation_id=conversation.id, role="assistant", content=answer),
+            Message(
+                conversation_id=conversation.id,
+                role="assistant",
+                content=answer,
+                model_id=self._model_id,
+            ),
         )
         await self._session.commit()
         return conversation.id, answer
@@ -113,6 +120,7 @@ class ChatService:
                 conversation_id=conversation.id,
                 role="assistant",
                 content="".join(answer_parts),
+                model_id=self._model_id,
             ),
         )
         await self._session.commit()

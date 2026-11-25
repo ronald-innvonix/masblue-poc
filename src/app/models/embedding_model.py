@@ -13,6 +13,7 @@ from app.models.base import Base, UUIDPrimaryKey
 if TYPE_CHECKING:
     from app.models.document_chunk import DocumentChunk
     from app.models.document_vector_status import DocumentVectorStatus
+    from app.models.message import Message
 
 
 class EmbeddingModelType(str, PyEnum):
@@ -25,33 +26,35 @@ class EmbeddingModelType(str, PyEnum):
 class EmbeddingModel(UUIDPrimaryKey, Base):
     """Registered embedding model configuration with single-active constraint."""
 
-    __tablename__ = "embedding_model"
+    __tablename__ = "models"
     __table_args__ = (
         Index(
-            "uq_single_active_model",
-            "is_active",
+            "uq_single_active_model_per_type",
+            "type",
             unique=True,
             postgresql_where=text("is_active = TRUE"),
         ),
     )
 
-    provider: Mapped[str] = mapped_column(String(50), nullable=False)
-    type: Mapped[EmbeddingModelType] = mapped_column(
+    provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    type: Mapped[EmbeddingModelType | None] = mapped_column(
         Enum(
             EmbeddingModelType,
             name="embedding_model_type",
             schema=get_settings().db_schema,
             values_callable=lambda enum_values: [value.value for value in enum_values],
         ),
-        nullable=False,
+        nullable=True,
     )
-    model_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    dimensions: Mapped[int] = mapped_column(Integer, nullable=False)
-    distance_metric: Mapped[str] = mapped_column(
+    model_name: Mapped[str | None] = mapped_column("model", String(100), nullable=True)
+    api_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    base_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    dimensions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    distance_metric: Mapped[str | None] = mapped_column(
         String(20),
         server_default=text("'cosine'"),
         default="cosine",
-        nullable=False,
+        nullable=True,
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean,
@@ -59,10 +62,10 @@ class EmbeddingModel(UUIDPrimaryKey, Base):
         default=False,
         nullable=False,
     )
-    activated_at: Mapped[datetime] = mapped_column(
+    activated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
-        nullable=False,
+        nullable=True,
     )
 
     vector_statuses: Mapped[list["DocumentVectorStatus"]] = relationship(
@@ -71,3 +74,4 @@ class EmbeddingModel(UUIDPrimaryKey, Base):
     chunks: Mapped[list["DocumentChunk"]] = relationship(
         back_populates="embedding_model",
     )
+    messages: Mapped[list["Message"]] = relationship(back_populates="model")
