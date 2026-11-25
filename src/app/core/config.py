@@ -24,9 +24,19 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
     llm_provider: str = "stub"
+    llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_model: str = "stub"
+    llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    llm_max_tokens: int | None = Field(default=None, gt=0)
     llm_timeout_seconds: float = Field(default=30.0, gt=0)
+    intent_llm_provider: str | None = None
+    intent_llm_base_url: str | None = None
+    intent_llm_api_key: str | None = None
+    intent_llm_model: str | None = None
+    intent_llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    intent_llm_max_tokens: int | None = Field(default=None, gt=0)
+    intent_llm_timeout_seconds: float | None = Field(default=None, gt=0)
     rate_limit_per_minute: int = Field(default=60, gt=0)
 
     model_config = SettingsConfigDict(

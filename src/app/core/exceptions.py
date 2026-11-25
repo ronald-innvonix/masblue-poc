@@ -36,6 +36,14 @@ class ServiceConfigurationError(AppError):
         super().__init__("SERVICE_CONFIGURATION_ERROR", "Service is not configured", 500)
 
 
+class LLMProviderError(AppError):
+    """Raised when an upstream LLM provider call fails or times out."""
+
+    def __init__(self, message: str = "Upstream LLM request failed") -> None:
+        """Initialize a safe provider error without exposing internal payloads."""
+        super().__init__("LLM_PROVIDER_ERROR", message, 502)
+
+
 def _request_id(request: Request) -> str:
     """Read the request ID assigned by middleware, with a safe fallback."""
     return str(getattr(request.state, "request_id", "unknown"))
